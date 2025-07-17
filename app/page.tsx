@@ -42,11 +42,154 @@ const LandingPage = ({ setView }: { setView: Function }) => (
 );
 
 const AuthFormContainer = ({ title, children, setView, pageType }: { title: string, children: React.ReactNode, setView: Function, pageType: string }) => ( <div className="relative z-10 w-full max-w-md p-6 sm:p-8 bg-gray-800/30 backdrop-blur-lg border border-gray-700/50 rounded-2xl shadow-2xl"> <h2 className="text-3xl font-bold text-white text-center">{title}</h2> {children} <p className="mt-6 text-center text-sm text-gray-400"> {pageType === 'login' ? "Don't have an account? " : "Already have an account? "} <a href="#" onClick={(e) => { e.preventDefault(); setView({ name: pageType === 'login' ? 'signup' : 'login' }); }} className="font-medium text-blue-400 hover:text-blue-300"> {pageType === 'login' ? 'Sign Up' : 'Log In'} </a> </p> </div> );
-const SignUpPage = ({ setView, setSession }: { setView: Function, setSession: Function }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [isLoading, setIsLoading] = useState(false); const handleSignUp = async (e: React.FormEvent) => { e.preventDefault(); setIsLoading(true); setError(''); const { session, error } = await supabase.auth.signUp({ email, password }); setIsLoading(false); if (error) setError(error.message); else setSession(session); }; return ( <AuthFormContainer title="Create an Account" setView={setView} pageType="signup"> <form onSubmit={handleSignUp} className="mt-8 space-y-6"> <Input id="email" type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} /> <Input id="password" type="password" placeholder="Password (min. 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} /> {error && <p className="text-red-400 text-sm text-center">{error}</p>} <Button type="submit" isLoading={isLoading}>Sign Up</Button> </form> </AuthFormContainer> ); };
-const LoginPage = ({ setView, setSession }: { setView: Function, setSession: Function }) => { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState(''); const [isLoading, setIsLoading] = useState(false); const handleLogin = async (e: React.FormEvent) => { e.preventDefault(); setIsLoading(true); setError(''); const { session, error } = await supabase.auth.signInWithPassword({ email, password }); setIsLoading(false); if (error) setError(error.message); else setSession(session); }; return ( <AuthFormContainer title="Welcome Back" setView={setView} pageType="login"> <form onSubmit={handleLogin} className="mt-8 space-y-6"> <Input id="email" type="email" placeholder="Email (test@example.com)" value={email} onChange={(e) => setEmail(e.target.value)} /> <Input id="password" type="password" placeholder="Password (password)" value={password} onChange={(e) => setPassword(e.target.value)} /> {error && <p className="text-red-400 text-sm text-center">{error}</p>} <Button type="submit" isLoading={isLoading}>Log In</Button> </form> </AuthFormContainer> ); };
-const SetupPage = ({ session, setSetupComplete }: { session: any, setSetupComplete: Function }) => { const [companyName, setCompanyName] = useState(''); const [isLoading, setIsLoading] = useState(false); const [error, setError] = useState(''); const createSlug = (name: string) => name.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-'); const handleCreatePage = async (e: React.FormEvent) => { e.preventDefault(); if (!companyName.trim()) { setError('Please enter a company name.'); return; } setIsLoading(true); setError(''); const slug = createSlug(companyName); const { error: insertError } = await supabase.from('pages').insert([{ company_name: companyName.trim(), page_slug: slug, user_id: session.user.id, }]); setIsLoading(false); if (insertError) { setError(`Could not create page. ${insertError.message.includes('23505') ? 'This name might be taken.' : ''}`); } else { setSetupComplete(true); } }; return ( <div className="relative z-10 w-full max-w-xl text-center p-4"> <div className="p-6 sm:p-8 bg-gray-800/30 backdrop-blur-lg border border-gray-700/50 rounded-2xl shadow-2xl"> <h1 className="text-3xl font-bold text-white">One Last Step!</h1> <p className="mt-2 text-gray-300">Let's get your public status page set up.</p> <form onSubmit={handleCreatePage} className="mt-8 space-y-6 text-left"> <div> <label htmlFor="companyName" className="block text-sm font-medium text-gray-300 mb-2">Your Company Name</label> <Input id="companyName" type="text" placeholder="e.g., My Awesome Inc." value={companyName} onChange={(e) => setCompanyName(e.target.value)} /> </div> {error && <p className="text-red-400 text-sm text-center">{error}</p>} <Button type="submit" isLoading={isLoading}>Create Page</Button> </form> </div> </div> ); };
+const SignUpPage = ({ setView, setSession }: { setView: Function, setSession: Function }) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
 
-const DashboardPage = ({ session, setSession, setView }: { session: any, setSession: Function, setView: Function }) => { const [pageData, setPageData] = useState<any>(null); const [incidents, setIncidents] = useState<any[]>([]); const [isLoading, setIsLoading] = useState(true); const [error, setError] = useState(''); const [newTitle, setNewTitle] = useState(''); const [newMessage, setNewMessage] = useState(''); const [newStatus, setNewStatus] = useState('Investigating'); const [isSubmitting, setIsSubmitting] = useState(false); const fetchPageAndIncidents = useCallback(async () => { setIsLoading(true); setError(''); const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('user_id', session.user.id).single(); if (pageError) { setError('Could not load page information.'); setIsLoading(false); return; } setPageData(page); if (page) { const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false }); if (incidentsError) setError('Could not load incidents.'); else setIncidents(incidentsData); } setIsLoading(false); }, [session.user.id]); useEffect(() => { fetchPageAndIncidents(); }, [fetchPageAndIncidents]); const handleCreateIncident = async (e: React.FormEvent) => { e.preventDefault(); if (!newTitle.trim() || !newMessage.trim()) return; setIsSubmitting(true); await supabase.from('incidents').insert([{ page_id: pageData.id, title: newTitle, message: newMessage, status: newStatus, }]); setNewTitle(''); setNewMessage(''); setNewStatus('Investigating'); await fetchPageAndIncidents(); setIsSubmitting(false); }; const handleSignOut = async () => { await supabase.auth.signOut(); setSession(null); }; const statusColors: { [key: string]: string } = { Investigating: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30', Monitoring: 'bg-blue-500/20 text-blue-300 border-blue-500/30', Resolved: 'bg-green-500/20 text-green-300 border-green-500/30', }; return ( <div className="w-full max-w-6xl mx-auto p-4 sm:p-6 lg:p-8"> <header className="flex flex-col sm:flex-row sm:flex-wrap justify-between items-center gap-4 mb-8"> <h1 className="text-3xl font-bold text-white text-center sm:text-left">{pageData?.company_name || 'Dashboard'}</h1> <div className="flex items-center gap-4"> <span className="text-gray-400 hidden md:block">{session.user.email}</span> <button onClick={handleSignOut} className="px-4 py-2 bg-gray-800/70 text-gray-300 font-semibold rounded-lg hover:bg-gray-700 transition-colors">Sign Out</button> </div> </header> {isLoading && <div className="text-center text-gray-300">Loading...</div>} {error && <div className="text-center text-red-400">{error}</div>} {pageData && ( <div className="grid grid-cols-1 lg:grid-cols-3 gap-8"> <div className="lg:col-span-2 space-y-8"> <div> <h2 className="font-semibold text-white text-lg mb-4">Past Incidents</h2> <div className="space-y-4"> {incidents.length > 0 ? incidents.map(incident => ( <div key={incident.id} className="bg-gray-800/50 border border-gray-700/60 rounded-xl p-5 transition-all hover:border-gray-600"> <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2"> <h3 className="font-bold text-white">{incident.title}</h3> <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${statusColors[incident.status]} flex-shrink-0`}>{incident.status}</span> </div> <p className="mt-2 text-gray-300 text-sm leading-relaxed">{incident.message}</p> <p className="mt-4 text-xs text-gray-500">Posted: {new Date(incident.created_at).toLocaleString()}</p> </div> )) : ( <div className="text-center text-gray-400 py-10 bg-gray-800/30 rounded-lg"><p>No incidents created yet.</p></div> )} </div> </div> </div> <div className="lg:col-span-1 space-y-8"> <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6"> <h2 className="font-semibold text-white text-lg">Your Public Page</h2> <div className="mt-4 flex flex-col items-stretch gap-2 bg-gray-900/70 p-3 rounded-lg"> <a href="#" onClick={(e) => { e.preventDefault(); setView({ name: 'public_status_page', slug: pageData.page_slug })}} className="text-green-400 truncate hover:underline p-2 text-center sm:text-left text-sm">StatusRelay.com/status/{pageData.page_slug}</a> <button onClick={() => navigator.clipboard.writeText(`StatusRelay.com/status/${pageData.page_slug}`)} className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600/20 text-blue-300 rounded-md hover:bg-blue-600/40 transition-colors" title="Copy to clipboard"><IconClipboard /> Copy Link</button> </div> </div> <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6"> <h2 className="font-semibold text-white text-lg mb-4">Create New Incident</h2> <form onSubmit={handleCreateIncident} className="space-y-4"> <Input id="title" type="text" placeholder="Incident Title" value={newTitle} onChange={e => setNewTitle(e.target.value)} /> <Textarea id="message" placeholder="What happened? Provide details..." value={newMessage} onChange={e => setNewMessage(e.target.value)} /> <Select id="status" value={newStatus} onChange={e => setNewStatus(e.target.value)}> <option>Investigating</option> <option>Monitoring</option> <option>Resolved</option> </Select> <Button type="submit" isLoading={isSubmitting}>Create Incident</Button> </form> </div> </div> </div> )} </div> ); };
+    const handleSignUp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setError('');
+        try {
+            const { session, error } = await supabase.auth.signUp({ email, password });
+            if (error) throw error;
+            setSession(session);
+        } catch (error: any) {
+            setError(error.message || 'An unexpected error occurred during sign up.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return ( <AuthFormContainer title="Create an Account" setView={setView} pageType="signup"> <form onSubmit={handleSignUp} className="mt-8 space-y-6"> <Input id="email" type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} /> <Input id="password" type="password" placeholder="Password (min. 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} /> {error && <p className="text-red-400 text-sm text-center">{error}</p>} <Button type="submit" isLoading={isLoading}>Sign Up</Button> </form> </AuthFormContainer> );
+};
+
+const LoginPage = ({ setView, setSession }: { setView: Function, setSession: Function }) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setError('');
+        try {
+            const { session, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            setSession(session);
+        } catch (error: any) {
+            setError(error.message || 'An unexpected error occurred during login.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return ( <AuthFormContainer title="Welcome Back" setView={setView} pageType="login"> <form onSubmit={handleLogin} className="mt-8 space-y-6"> <Input id="email" type="email" placeholder="Email (test@example.com)" value={email} onChange={(e) => setEmail(e.target.value)} /> <Input id="password" type="password" placeholder="Password (password)" value={password} onChange={(e) => setPassword(e.target.value)} /> {error && <p className="text-red-400 text-sm text-center">{error}</p>} <Button type="submit" isLoading={isLoading}>Log In</Button> </form> </AuthFormContainer> );
+};
+
+const SetupPage = ({ session, setSetupComplete }: { session: any, setSetupComplete: Function }) => {
+    const [companyName, setCompanyName] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const createSlug = (name: string) => name.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
+
+    const handleCreatePage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!companyName.trim()) {
+            setError('Please enter a company name.');
+            return;
+        }
+        setIsLoading(true);
+        setError('');
+        try {
+            const slug = createSlug(companyName);
+            const { error: insertError } = await supabase.from('pages').insert([{
+                company_name: companyName.trim(),
+                page_slug: slug,
+                user_id: session.user.id,
+            }]);
+            if (insertError) throw insertError;
+            setSetupComplete(true);
+        } catch (error: any) {
+            setError(`Could not create page. ${error.message.includes('23505') ? 'This name might be taken.' : 'Please try again.'}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return ( <div className="relative z-10 w-full max-w-xl text-center p-4"> <div className="p-6 sm:p-8 bg-gray-800/30 backdrop-blur-lg border border-gray-700/50 rounded-2xl shadow-2xl"> <h1 className="text-3xl font-bold text-white">One Last Step!</h1> <p className="mt-2 text-gray-300">Let's get your public status page set up.</p> <form onSubmit={handleCreatePage} className="mt-8 space-y-6 text-left"> <div> <label htmlFor="companyName" className="block text-sm font-medium text-gray-300 mb-2">Your Company Name</label> <Input id="companyName" type="text" placeholder="e.g., My Awesome Inc." value={companyName} onChange={(e) => setCompanyName(e.target.value)} /> </div> {error && <p className="text-red-400 text-sm text-center">{error}</p>} <Button type="submit" isLoading={isLoading}>Create Page</Button> </form> </div> </div> );
+};
+
+const DashboardPage = ({ session, setSession, setView }: { session: any, setSession: Function, setView: Function }) => {
+    const [pageData, setPageData] = useState<any>(null);
+    const [incidents, setIncidents] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [newTitle, setNewTitle] = useState('');
+    const [newMessage, setNewMessage] = useState('');
+    const [newStatus, setNewStatus] = useState('Investigating');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const fetchPageAndIncidents = useCallback(async () => {
+        setIsLoading(true);
+        setError('');
+        try {
+            const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('user_id', session.user.id).single();
+            if (pageError) throw pageError;
+            setPageData(page);
+
+            if (page) {
+                const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false });
+                if (incidentsError) throw incidentsError;
+                setIncidents(incidentsData || []);
+            }
+        } catch (error: any) {
+            setError(error.message || 'Could not load dashboard data.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [session.user.id]);
+
+    useEffect(() => {
+        fetchPageAndIncidents();
+    }, [fetchPageAndIncidents]);
+
+    const handleCreateIncident = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newTitle.trim() || !newMessage.trim()) return;
+        setIsSubmitting(true);
+        try {
+            const { error } = await supabase.from('incidents').insert([{
+                page_id: pageData.id,
+                title: newTitle,
+                message: newMessage,
+                status: newStatus,
+            }]);
+            if (error) throw error;
+            setNewTitle('');
+            setNewMessage('');
+            setNewStatus('Investigating');
+            await fetchPageAndIncidents();
+        } catch (error: any) {
+            console.error("Failed to create incident:", error);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        setSession(null);
+    };
+
+    const statusColors: { [key: string]: string } = { Investigating: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30', Monitoring: 'bg-blue-500/20 text-blue-300 border-blue-500/30', Resolved: 'bg-green-500/20 text-green-300 border-green-500/30', };
+
+    return ( <div className="w-full max-w-6xl mx-auto p-4 sm:p-6 lg:p-8"> <header className="flex flex-col sm:flex-row sm:flex-wrap justify-between items-center gap-4 mb-8"> <h1 className="text-3xl font-bold text-white text-center sm:text-left">{pageData?.company_name || 'Dashboard'}</h1> <div className="flex items-center gap-4"> <span className="text-gray-400 hidden md:block">{session.user.email}</span> <button onClick={handleSignOut} className="px-4 py-2 bg-gray-800/70 text-gray-300 font-semibold rounded-lg hover:bg-gray-700 transition-colors">Sign Out</button> </div> </header> {isLoading && <div className="text-center text-gray-300">Loading...</div>} {error && <div className="text-center text-red-400">{error}</div>} {pageData && ( <div className="grid grid-cols-1 lg:grid-cols-3 gap-8"> <div className="lg:col-span-2 space-y-8"> <div> <h2 className="font-semibold text-white text-lg mb-4">Past Incidents</h2> <div className="space-y-4"> {incidents.length > 0 ? incidents.map(incident => ( <div key={incident.id} className="bg-gray-800/50 border border-gray-700/60 rounded-xl p-5 transition-all hover:border-gray-600"> <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2"> <h3 className="font-bold text-white">{incident.title}</h3> <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${statusColors[incident.status]} flex-shrink-0`}>{incident.status}</span> </div> <p className="mt-2 text-gray-300 text-sm leading-relaxed">{incident.message}</p> <p className="mt-4 text-xs text-gray-500">Posted: {new Date(incident.created_at).toLocaleString()}</p> </div> )) : ( <div className="text-center text-gray-400 py-10 bg-gray-800/30 rounded-lg"><p>No incidents created yet.</p></div> )} </div> </div> </div> <div className="lg:col-span-1 space-y-8"> <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6"> <h2 className="font-semibold text-white text-lg">Your Public Page</h2> <div className="mt-4 flex flex-col items-stretch gap-2 bg-gray-900/70 p-3 rounded-lg"> <a href="#" onClick={(e) => { e.preventDefault(); setView({ name: 'public_status_page', slug: pageData.page_slug })}} className="text-green-400 truncate hover:underline p-2 text-center sm:text-left text-sm">StatusRelay.com/status/{pageData.page_slug}</a> <button onClick={() => navigator.clipboard.writeText(`StatusRelay.com/status/${pageData.page_slug}`)} className="flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600/20 text-blue-300 rounded-md hover:bg-blue-600/40 transition-colors" title="Copy to clipboard"><IconClipboard /> Copy Link</button> </div> </div> <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 rounded-xl p-6"> <h2 className="font-semibold text-white text-lg mb-4">Create New Incident</h2> <form onSubmit={handleCreateIncident} className="space-y-4"> <Input id="title" type="text" placeholder="Incident Title" value={newTitle} onChange={e => setNewTitle(e.target.value)} /> <Textarea id="message" placeholder="What happened? Provide details..." value={newMessage} onChange={e => setNewMessage(e.target.value)} /> <Select id="status" value={newStatus} onChange={e => setNewStatus(e.target.value)}> <option>Investigating</option> <option>Monitoring</option> <option>Resolved</option> </Select> <Button type="submit" isLoading={isSubmitting}>Create Incident</Button> </form> </div> </div> </div> )} </div> );
+};
 
 const PublicStatusPage = ({ slug, setView }: { slug: string, setView: Function }) => {
     const [pageData, setPageData] = useState<any>(null);
@@ -58,12 +201,23 @@ const PublicStatusPage = ({ slug, setView }: { slug: string, setView: Function }
         const fetchPublicPageData = async () => {
             setIsLoading(true);
             setError('');
-            const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('page_slug', slug).single();
-            if (pageError || !page) { setError('This status page could not be found.'); setIsLoading(false); return; }
-            setPageData(page);
-            const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false });
-            if (incidentsError) { setError('Could not load incidents for this page.'); } else { setIncidents(incidentsData); }
-            setIsLoading(false);
+            try {
+                const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('page_slug', slug).single();
+                if (pageError || !page) {
+                    throw new Error('This status page could not be found.');
+                }
+                setPageData(page);
+
+                const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false });
+                if (incidentsError) {
+                    throw new Error('Could not load incidents for this page.');
+                }
+                setIncidents(incidentsData || []);
+            } catch (error: any) {
+                setError(error.message);
+            } finally {
+                setIsLoading(false);
+            }
         };
         fetchPublicPageData();
     }, [slug]);
