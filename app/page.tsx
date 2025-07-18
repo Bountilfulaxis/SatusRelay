@@ -1,21 +1,18 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
+import { createClient, Session } from 'https://unpkg.com/@supabase/supabase-js@2';
 
 // --- ICONS (Simple SVG components for a modern feel) ---
 const IconClipboard = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>;
 const IconCheckCircle = () => <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>;
 const IconLoader = () => <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>;
 
+// --- REAL SUPABASE CLIENT INITIALIZATION ---
+// This uses the environment variables you created in your .env.local file
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// --- SUPABASE CLIENT (MOCK) ---
-const mockDb = {
-  pages: [ { id: 101, user_id: 'mock-user-id', company_name: 'Test Example Corp', page_slug: 'test-example-corp', created_at: new Date().toISOString() } ],
-  incidents: [
-      { id: 1, page_id: 101, title: "API Latency Issues", message: "We are observing increased latency on some of our API endpoints. Our team is currently investigating the root cause and will post an update shortly.", status: "Investigating", created_at: new Date(Date.now() - 3600000).toISOString() },
-      { id: 2, page_id: 101, title: "Scheduled Maintenance Complete", message: "Scheduled maintenance on our database servers has been successfully completed. All systems are back to normal.", status: "Resolved", created_at: new Date(Date.now() - 86400000).toISOString() },
-  ],
-};
-const supabase = { auth: { signUp: async ({ email, password }: { email: string, password: string }) => { await new Promise(r => setTimeout(r, 1000)); if (password.length < 6) return { user: null, session: null, error: { message: 'Password should be at least 6 characters.' } }; const user = { id: `mock-user-${Date.now()}`, email: email, is_new_user: true }; return { user: user, session: { access_token: 'mock-access-token', user: user }, error: null }; }, signInWithPassword: async ({ email, password }: { email: string, password: string }) => { await new Promise(r => setTimeout(r, 1000)); if (email === 'test@example.com' && password === 'password') { const user = { id: 'mock-user-id', email: email }; return { user: user, session: { access_token: 'mock-access-token', user: user }, error: null }; } return { user: null, session: null, error: { message: 'Invalid login credentials.' } }; }, signOut: async () => { await new Promise(r => setTimeout(r, 500)); return { error: null }; }, onAuthStateChange: (cb: any) => ({ data: { subscription: { unsubscribe: () => {} } } }) }, from: function(tableName: string) { return { select: function(columns = '*') { return { eq: function(column: string, value: any) { const executeQuery = (isSingle = false, order: any = null) => { return new Promise(resolve => { let results = (mockDb as any)[tableName] || []; results = results.filter((row: any) => row[column] === value); if (order) { results.sort((a: any, b: any) => { if (a[order.column] < b[order.column]) return order.ascending ? -1 : 1; if (a[order.column] > b[order.column]) return order.ascending ? 1 : -1; return 0; }); } if (isSingle) resolve({ data: results[0] || null, error: null }); else resolve({ data: results, error: null }); }); }; return { order: function(orderColumn: string, { ascending }: { ascending: boolean }) { return executeQuery(false, { column: orderColumn, ascending }); }, single: function() { return executeQuery(true); } }; } }; }, insert: async (records: any) => { const record = records[0]; if (tableName === 'pages' && (mockDb as any).pages.some((p: any) => p.page_slug === record.page_slug)) { return { data: null, error: { message: 'Page slug already exists', code: '23505' } }; } const newId = Date.now(); const newRecord = { id: newId, created_at: new Date().toISOString(), ...record }; (mockDb as any)[tableName].push(newRecord); return { data: [newRecord], error: null }; } }; } };
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // --- STYLES ---
 const GlobalStyles = () => ( <style>{`@tailwind base; @tailwind components; @tailwind utilities; body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }`}</style> );
@@ -42,20 +39,23 @@ const LandingPage = ({ setView }: { setView: Function }) => (
 );
 
 const AuthFormContainer = ({ title, children, setView, pageType }: { title: string, children: React.ReactNode, setView: Function, pageType: string }) => ( <div className="relative z-10 w-full max-w-md p-6 sm:p-8 bg-gray-800/30 backdrop-blur-lg border border-gray-700/50 rounded-2xl shadow-2xl"> <h2 className="text-3xl font-bold text-white text-center">{title}</h2> {children} <p className="mt-6 text-center text-sm text-gray-400"> {pageType === 'login' ? "Don't have an account? " : "Already have an account? "} <a href="#" onClick={(e) => { e.preventDefault(); setView({ name: pageType === 'login' ? 'signup' : 'login' }); }} className="font-medium text-blue-400 hover:text-blue-300"> {pageType === 'login' ? 'Sign Up' : 'Log In'} </a> </p> </div> );
+
 const SignUpPage = ({ setView, setSession }: { setView: Function, setSession: Function }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [message, setMessage] = useState('');
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setError('');
+        setMessage('');
         try {
-            const { session, error } = await supabase.auth.signUp({ email, password });
+            const { error } = await supabase.auth.signUp({ email, password });
             if (error) throw error;
-            setSession(session);
+            setMessage('Check your email for the confirmation link!');
         } catch (error: any) {
             setError(error.message || 'An unexpected error occurred during sign up.');
         } finally {
@@ -63,7 +63,7 @@ const SignUpPage = ({ setView, setSession }: { setView: Function, setSession: Fu
         }
     };
 
-    return ( <AuthFormContainer title="Create an Account" setView={setView} pageType="signup"> <form onSubmit={handleSignUp} className="mt-8 space-y-6"> <Input id="email" type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} /> <Input id="password" type="password" placeholder="Password (min. 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} /> {error && <p className="text-red-400 text-sm text-center">{error}</p>} <Button type="submit" isLoading={isLoading}>Sign Up</Button> </form> </AuthFormContainer> );
+    return ( <AuthFormContainer title="Create an Account" setView={setView} pageType="signup"> <form onSubmit={handleSignUp} className="mt-8 space-y-6"> <Input id="email" type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} /> <Input id="password" type="password" placeholder="Password (min. 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} /> {error && <p className="text-red-400 text-sm text-center">{error}</p>} {message && <p className="text-green-400 text-sm text-center">{message}</p>} <Button type="submit" isLoading={isLoading}>Sign Up</Button> </form> </AuthFormContainer> );
 };
 
 const LoginPage = ({ setView, setSession }: { setView: Function, setSession: Function }) => {
@@ -77,9 +77,9 @@ const LoginPage = ({ setView, setSession }: { setView: Function, setSession: Fun
         setIsLoading(true);
         setError('');
         try {
-            const { session, error } = await supabase.auth.signInWithPassword({ email, password });
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) throw error;
-            setSession(session);
+            // The onAuthStateChange listener will handle setting the session
         } catch (error: any) {
             setError(error.message || 'An unexpected error occurred during login.');
         } finally {
@@ -87,10 +87,10 @@ const LoginPage = ({ setView, setSession }: { setView: Function, setSession: Fun
         }
     };
 
-    return ( <AuthFormContainer title="Welcome Back" setView={setView} pageType="login"> <form onSubmit={handleLogin} className="mt-8 space-y-6"> <Input id="email" type="email" placeholder="Email (test@example.com)" value={email} onChange={(e) => setEmail(e.target.value)} /> <Input id="password" type="password" placeholder="Password (password)" value={password} onChange={(e) => setPassword(e.target.value)} /> {error && <p className="text-red-400 text-sm text-center">{error}</p>} <Button type="submit" isLoading={isLoading}>Log In</Button> </form> </AuthFormContainer> );
+    return ( <AuthFormContainer title="Welcome Back" setView={setView} pageType="login"> <form onSubmit={handleLogin} className="mt-8 space-y-6"> <Input id="email" type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} /> <Input id="password" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} /> {error && <p className="text-red-400 text-sm text-center">{error}</p>} <Button type="submit" isLoading={isLoading}>Log In</Button> </form> </AuthFormContainer> );
 };
 
-const SetupPage = ({ session, setSetupComplete }: { session: any, setSetupComplete: Function }) => {
+const SetupPage = ({ session, setSetupComplete }: { session: Session, setSetupComplete: Function }) => {
     const [companyName, setCompanyName] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -99,10 +99,7 @@ const SetupPage = ({ session, setSetupComplete }: { session: any, setSetupComple
 
     const handleCreatePage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!companyName.trim()) {
-            setError('Please enter a company name.');
-            return;
-        }
+        if (!companyName.trim()) { setError('Please enter a company name.'); return; }
         setIsLoading(true);
         setError('');
         try {
@@ -124,7 +121,7 @@ const SetupPage = ({ session, setSetupComplete }: { session: any, setSetupComple
     return ( <div className="relative z-10 w-full max-w-xl text-center p-4"> <div className="p-6 sm:p-8 bg-gray-800/30 backdrop-blur-lg border border-gray-700/50 rounded-2xl shadow-2xl"> <h1 className="text-3xl font-bold text-white">One Last Step!</h1> <p className="mt-2 text-gray-300">Let's get your public status page set up.</p> <form onSubmit={handleCreatePage} className="mt-8 space-y-6 text-left"> <div> <label htmlFor="companyName" className="block text-sm font-medium text-gray-300 mb-2">Your Company Name</label> <Input id="companyName" type="text" placeholder="e.g., My Awesome Inc." value={companyName} onChange={(e) => setCompanyName(e.target.value)} /> </div> {error && <p className="text-red-400 text-sm text-center">{error}</p>} <Button type="submit" isLoading={isLoading}>Create Page</Button> </form> </div> </div> );
 };
 
-const DashboardPage = ({ session, setSession, setView }: { session: any, setSession: Function, setView: Function }) => {
+const DashboardPage = ({ session, setView }: { session: Session, setView: Function }) => {
     const [pageData, setPageData] = useState<any>(null);
     const [incidents, setIncidents] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -138,12 +135,12 @@ const DashboardPage = ({ session, setSession, setView }: { session: any, setSess
         setIsLoading(true);
         setError('');
         try {
-            const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('user_id', session.user.id).single() as { data: any, error: any };
+            const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('user_id', session.user.id).single();
             if (pageError) throw pageError;
             setPageData(page);
 
             if (page) {
-                const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false }) as { data: any[], error: any };
+                const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false });
                 if (incidentsError) throw incidentsError;
                 setIncidents(incidentsData || []);
             }
@@ -163,16 +160,9 @@ const DashboardPage = ({ session, setSession, setView }: { session: any, setSess
         if (!newTitle.trim() || !newMessage.trim()) return;
         setIsSubmitting(true);
         try {
-            const { error } = await supabase.from('incidents').insert([{
-                page_id: pageData.id,
-                title: newTitle,
-                message: newMessage,
-                status: newStatus,
-            }]);
+            const { error } = await supabase.from('incidents').insert([{ page_id: pageData.id, title: newTitle, message: newMessage, status: newStatus }]);
             if (error) throw error;
-            setNewTitle('');
-            setNewMessage('');
-            setNewStatus('Investigating');
+            setNewTitle(''); setNewMessage(''); setNewStatus('Investigating');
             await fetchPageAndIncidents();
         } catch (error: any) {
             console.error("Failed to create incident:", error);
@@ -183,7 +173,6 @@ const DashboardPage = ({ session, setSession, setView }: { session: any, setSess
 
     const handleSignOut = async () => {
         await supabase.auth.signOut();
-        setSession(null);
     };
 
     const statusColors: { [key: string]: string } = { Investigating: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30', Monitoring: 'bg-blue-500/20 text-blue-300 border-blue-500/30', Resolved: 'bg-green-500/20 text-green-300 border-green-500/30', };
@@ -202,16 +191,12 @@ const PublicStatusPage = ({ slug, setView }: { slug: string, setView: Function }
             setIsLoading(true);
             setError('');
             try {
-                const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('page_slug', slug).single() as { data: any, error: any };
-                if (pageError || !page) {
-                    throw new Error('This status page could not be found.');
-                }
+                const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('page_slug', slug).single();
+                if (pageError || !page) throw new Error('This status page could not be found.');
                 setPageData(page);
 
-                const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false }) as { data: any[], error: any };
-                if (incidentsError) {
-                    throw new Error('Could not load incidents for this page.');
-                }
+                const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false });
+                if (incidentsError) throw new Error('Could not load incidents for this page.');
                 setIncidents(incidentsData || []);
             } catch (error: any) {
                 setError(error.message);
@@ -271,10 +256,12 @@ const PublicStatusPage = ({ slug, setView }: { slug: string, setView: Function }
 // --- MAIN APP COMPONENT (Router) ---
 export default function App() {
   const [view, setView] = useState({ name: 'landing' }); 
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [setupComplete, setSetupComplete] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
 
   useEffect(() => {
+    // This effect handles loading Tailwind and fonts
     if (!document.querySelector('script[src="https://cdn.tailwindcss.com"]')) {
       const tailwindScript = document.createElement('script');
       tailwindScript.src = "https://cdn.tailwindcss.com";
@@ -289,13 +276,22 @@ export default function App() {
   }, []);
   
   useEffect(() => {
-    if (!session) {
-      setView({ name: 'landing' });
-      setSetupComplete(false);
-    } else {
-        if (!session.user.is_new_user) setSetupComplete(true);
-    }
-  }, [session]);
+    // This effect listens for Supabase auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        setSession(session);
+        if (event === 'SIGNED_IN') {
+            // Check if this is the first sign-in
+            setIsNewUser(session?.user?.created_at === session?.user?.last_sign_in_at);
+        }
+        if (event === 'SIGNED_OUT') {
+            setView({ name: 'landing' });
+            setSetupComplete(false);
+            setIsNewUser(false);
+        }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const renderContent = () => {
     if (view.name === 'public_status_page') {
@@ -303,10 +299,10 @@ export default function App() {
     }
       
     if (session) {
-      if (!setupComplete) {
+      if (isNewUser && !setupComplete) {
         return <SetupPage session={session} setSetupComplete={setSetupComplete} />;
       }
-      return <DashboardPage session={session} setSession={setSession} setView={setView} />;
+      return <DashboardPage session={session} setView={setView} />;
     }
     
     switch (view.name) {
@@ -325,7 +321,7 @@ export default function App() {
         <main className="min-h-screen flex flex-col items-center justify-center">
             {isAuthScreen && (
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-900/10 via-slate-900/10 to-purple-900/10">
-                    <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_10%_20%,_rgba(147,197,253,0.05),_transparent_40%),radial-gradient(circle_at_80%_90%,_rgba(192,132,252,0.05),_transparent_40%)]"></div>
+                    <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_10%_20%,_rgba(147,197,253,0.1),_transparent_40%),radial-gradient(circle_at_80%_90%,_rgba(192,132,252,0.05),_transparent_40%)]"></div>
                 </div>
             )}
             <div className="w-full h-full">{renderContent()}</div>
