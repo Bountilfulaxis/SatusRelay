@@ -138,12 +138,12 @@ const DashboardPage = ({ session, setSession, setView }: { session: any, setSess
         setIsLoading(true);
         setError('');
         try {
-            const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('user_id', session.user.id).single();
+            const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('user_id', session.user.id).single() as { data: any, error: any };
             if (pageError) throw pageError;
             setPageData(page);
 
             if (page) {
-                const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false });
+                const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false }) as { data: any[], error: any };
                 if (incidentsError) throw incidentsError;
                 setIncidents(incidentsData || []);
             }
@@ -202,13 +202,13 @@ const PublicStatusPage = ({ slug, setView }: { slug: string, setView: Function }
             setIsLoading(true);
             setError('');
             try {
-                const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('page_slug', slug).single();
+                const { data: page, error: pageError } = await supabase.from('pages').select('*').eq('page_slug', slug).single() as { data: any, error: any };
                 if (pageError || !page) {
                     throw new Error('This status page could not be found.');
                 }
                 setPageData(page);
 
-                const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false });
+                const { data: incidentsData, error: incidentsError } = await supabase.from('incidents').select('*').eq('page_id', page.id).order('created_at', { ascending: false }) as { data: any[], error: any };
                 if (incidentsError) {
                     throw new Error('Could not load incidents for this page.');
                 }
